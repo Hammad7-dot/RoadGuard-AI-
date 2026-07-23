@@ -19,32 +19,6 @@ rows = repo.get_all()
 
 df = pd.DataFrame(rows)
 
-if df.empty:
-
-    st.info("No detections found.")
-
-else:
-
-    st.dataframe(
-
-        df,
-
-        use_container_width=True,
-
-        hide_index=True
-
-    )
-
-    st.download_button(
-
-        "⬇ Download CSV",
-
-        df.to_csv(index=False),
-
-        "detections.csv"
-
-    )
-
 # ---------------------------------
 # Search
 # ---------------------------------
@@ -53,7 +27,7 @@ search = st.text_input(
     "🔍 Search Damage Type"
 )
 
-if search:
+if search and not df.empty:
 
     df = df[
         df["damage_type"]
@@ -70,7 +44,21 @@ if search:
 
 st.subheader("📊 Statistics")
 
-c1, c2, c3 = st.columns(3)
+# Video session rows store a dummy confidence of 1.0 (there's no
+# single per-object confidence for a whole video), so they'd skew
+# "Average Confidence" upward if included. Split them out.
+image_rows = (
+    df[df["damage_type"] != "Video Analysis"]
+    if not df.empty
+    else df
+)
+video_rows = (
+    df[df["damage_type"] == "Video Analysis"]
+    if not df.empty
+    else df
+)
+
+c1, c2, c3, c4 = st.columns(4)
 
 c1.metric(
     "Database Records",
@@ -79,12 +67,12 @@ c1.metric(
 
 c2.metric(
     "Unique Damage Types",
-    df["damage_type"].nunique() if not df.empty else 0
+    image_rows["damage_type"].nunique() if not image_rows.empty else 0
 )
 
 average = (
-    df["confidence"].mean() * 100
-    if not df.empty
+    image_rows["confidence"].mean() * 100
+    if not image_rows.empty
     else 0
 )
 
@@ -93,7 +81,39 @@ c3.metric(
     f"{average:.1f}%"
 )
 
+c4.metric(
+    "Video Sessions",
+    len(video_rows)
+)
+
 st.divider()
+
+# ---------------------------------
+# Video Sessions
+# ---------------------------------
+
+if not video_rows.empty:
+
+    st.subheader("🎥 Video Sessions")
+
+    video_display = video_rows[
+        ["id", "filename", "total_frames", "detection_count",
+         "unique_defect_count", "processing_time", "created_at"]
+    ].rename(columns={
+        "detection_count": "total_detections",
+    })
+
+    st.dataframe(
+        video_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.divider()
+
+# ---------------------------------
+# Detection History
+# ---------------------------------
 
 st.subheader("📋 Detection History")
 
@@ -109,24 +129,14 @@ else:
         hide_index=True
     )
 
-# ---------------------------------
-# Export CSV
-# ---------------------------------
-
-if not df.empty:
-
-    csv = df.to_csv(index=False)
-
     st.download_button(
-
-        label="⬇ Export CSV",
-
-        data=csv,
-
+        "⬇ Export CSV",
+        df.to_csv(index=False),
         file_name="road_damage_history.csv",
-
         mime="text/csv"
     )
+
+st.divider()
 
 st.subheader("🗑 Delete Record")
 

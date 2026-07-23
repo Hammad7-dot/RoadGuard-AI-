@@ -105,7 +105,12 @@ class DetectionRepository:
 
         conn.close()
 
-        return rows
+        # sqlite3.Row isn't a true Mapping as far as pandas is
+        # concerned, so pd.DataFrame(rows) silently drops the column
+        # names and falls back to integer columns (0, 1, 2, ...).
+        # Converting to plain dicts here keeps column names intact
+        # for any caller that builds a DataFrame from this.
+        return [dict(row) for row in rows]
 
     # ----------------------------
 

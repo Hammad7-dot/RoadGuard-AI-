@@ -22,6 +22,7 @@ Two ways to run detection against a live camera:
 
 import time
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -59,7 +60,10 @@ class WebcamDetector:
         )
 
         result = results[0]
-        annotated_image = result.plot()
+        # result.plot() returns BGR; convert to RGB so this matches
+        # ai/detector.py's convention (consistent with st.image()'s
+        # default RGB expectation).
+        annotated_image = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
 
         detection_count = len(result.boxes) if result.boxes is not None else 0
 

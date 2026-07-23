@@ -41,6 +41,10 @@ def create_tables():
 
         processing_time REAL,
 
+        total_frames INTEGER,
+
+        unique_defect_count INTEGER,
+
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
     )
@@ -51,4 +55,36 @@ def create_tables():
     conn.close()
 
 
+def _migrate_schema():
+    """
+    Add new columns to an existing detections table for people who
+    already have a roadguard.db from before total_frames /
+    unique_defect_count existed. SQLite has no "ADD COLUMN IF NOT
+    EXISTS", so check pragma info first.
+    """
+
+    conn = get_connection()
+
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(detections)")
+
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    if "total_frames" not in existing_columns:
+        cursor.execute(
+            "ALTER TABLE detections ADD COLUMN total_frames INTEGER"
+        )
+
+    if "unique_defect_count" not in existing_columns:
+        cursor.execute(
+            "ALTER TABLE detections ADD COLUMN unique_defect_count INTEGER"
+        )
+
+    conn.commit()
+
+    conn.close()
+
+
 create_tables()
+_migrate_schema()

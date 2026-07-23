@@ -1,0 +1,401 @@
+diff --git a/ai/detector.py b/ai/detector.py
+index a86b61c..3cdee05 100644
+--- a/ai/detector.py
++++ b/ai/detector.py
+@@ -58,7 +58,10 @@ class RoadDamageDetector:
+ 
+         result = results[0]
+ 
+-        annotated_image = result.plot()
++        # result.plot() returns a BGR ndarray (Ultralytics draws with cv2
++        # internally). Convert to RGB once here so every caller downstream
++        # (st.image, save_output, etc.) can treat annotated_image as RGB.
++        annotated_image = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
+ 
+         detections = []
+ 
+diff --git a/ai/webcam_detector.py b/ai/webcam_detector.py
+index 754f31f..b0f5608 100644
+--- a/ai/webcam_detector.py
++++ b/ai/webcam_detector.py
+@@ -22,6 +22,7 @@ Two ways to run detection against a live camera:
+ 
+ import time
+ 
++import cv2
+ import numpy as np
+ from PIL import Image
+ 
+@@ -59,7 +60,10 @@ class WebcamDetector:
+         )
+ 
+         result = results[0]
+-        annotated_image = result.plot()
++        # result.plot() returns BGR; convert to RGB so this matches
++        # ai/detector.py's convention (consistent with st.image()'s
++        # default RGB expectation).
++        annotated_image = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
+ 
+         detection_count = len(result.boxes) if result.boxes is not None else 0
+ 
+diff --git a/components/charts.py b/components/charts.py
+index 291e52d..4a97b75 100644
+--- a/components/charts.py
++++ b/components/charts.py
+@@ -2,45 +2,22 @@ import streamlit as st
+ import pandas as pd
+ import plotly.express as px
+ 
++from database.repository import DetectionRepository
++
+ 
+ def damage_chart():
+ 
+     st.subheader("Road Damage Statistics")
+ 
+-    df = pd.DataFrame({
+-
+-        "Damage":[
+-
+-            "Pothole",
+-
+-            "Longitudinal",
+-
+-            "Transverse",
+-
+-            "Patch",
+-
+-            "Manhole",
+-
+-            "Road Marking"
++    distribution = DetectionRepository().get_damage_distribution()
+ 
+-        ],
+-
+-        "Count":[
+-
+-            32,
+-
+-            18,
+-
+-            12,
+-
+-            9,
+-
+-            6,
+-
+-            4
+-
+-        ]
++    if not distribution:
++        st.info("No detections yet — run some analyses to populate this chart.")
++        return
+ 
++    df = pd.DataFrame({
++        "Damage": list(distribution.keys()),
++        "Count": list(distribution.values())
+     })
+ 
+     left,right = st.columns(2)
+diff --git a/components/dashboard_cards.py b/components/dashboard_cards.py
+index b8049f7..cce360d 100644
+--- a/components/dashboard_cards.py
++++ b/components/dashboard_cards.py
+@@ -1,28 +1,34 @@
+ import streamlit as st
+ 
++from database.repository import DetectionRepository
++
+ 
+ def dashboard_cards():
+ 
+     st.subheader("Overview")
+ 
++    stats = DetectionRepository().get_dashboard_stats()
++
+     c1, c2, c3, c4 = st.columns(4)
+ 
+     c1.metric(
+         "Images",
+-        "124"
++        stats["images_analyzed"]
+     )
+ 
+     c2.metric(
+         "Videos",
+-        "28"
++        stats["videos_analyzed"]
+     )
+ 
+     c3.metric(
+         "Detections",
+-        "536"
++        stats["total_detections"]
+     )
+ 
+     c4.metric(
+-        "Accuracy",
+-        "96.8%"
++        "Avg. Confidence",
++        f"{stats['avg_confidence'] * 100:.1f}%"
++        if stats["avg_confidence"] is not None
++        else "N/A"
+     )
+\ No newline at end of file
+diff --git a/components/stats.py b/components/stats.py
+index ff5d242..f7c6ec8 100644
+--- a/components/stats.py
++++ b/components/stats.py
+@@ -1,5 +1,8 @@
+ import streamlit as st
+ 
++from utils.constants import DAMAGE_CLASSES
++from database.repository import DetectionRepository
++
+ 
+ def stats_section():
+ 
+@@ -8,11 +11,13 @@ def stats_section():
+         unsafe_allow_html=True
+     )
+ 
++    stats = DetectionRepository().get_dashboard_stats()
++
+     c1, c2, c3, c4 = st.columns(4)
+ 
+     c1.metric(
+         "Damage Classes",
+-        "7"
++        str(len(DAMAGE_CLASSES))
+     )
+ 
+     c2.metric(
+@@ -21,11 +26,13 @@ def stats_section():
+     )
+ 
+     c3.metric(
+-        "Accuracy",
+-        "96%"
++        "Avg. Confidence",
++        f"{stats['avg_confidence'] * 100:.1f}%"
++        if stats["avg_confidence"] is not None
++        else "N/A"
+     )
+ 
+     c4.metric(
+-        "Inference",
+-        "18 ms"
++        "Total Detections",
++        stats["total_detections"]
+     )
+\ No newline at end of file
+diff --git a/database/database.py b/database/database.py
+index 28daff1..00e520a 100644
+--- a/database/database.py
++++ b/database/database.py
+@@ -41,6 +41,10 @@ def create_tables():
+ 
+         processing_time REAL,
+ 
++        total_frames INTEGER,
++
++        unique_defect_count INTEGER,
++
+         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 
+     )
+@@ -51,4 +55,36 @@ def create_tables():
+     conn.close()
+ 
+ 
+-create_tables()
+\ No newline at end of file
++def _migrate_schema():
++    """
++    Add new columns to an existing detections table for people who
++    already have a roadguard.db from before total_frames /
++    unique_defect_count existed. SQLite has no "ADD COLUMN IF NOT
++    EXISTS", so check pragma info first.
++    """
++
++    conn = get_connection()
++
++    cursor = conn.cursor()
++
++    cursor.execute("PRAGMA table_info(detections)")
++
++    existing_columns = {row[1] for row in cursor.fetchall()}
++
++    if "total_frames" not in existing_columns:
++        cursor.execute(
++            "ALTER TABLE detections ADD COLUMN total_frames INTEGER"
++        )
++
++    if "unique_defect_count" not in existing_columns:
++        cursor.execute(
++            "ALTER TABLE detections ADD COLUMN unique_defect_count INTEGER"
++        )
++
++    conn.commit()
++
++    conn.close()
++
++
++create_tables()
++_migrate_schema()
+diff --git a/database/repository.py b/database/repository.py
+index 337f960..bff2901 100644
+--- a/database/repository.py
++++ b/database/repository.py
+@@ -148,8 +148,9 @@ class DetectionRepository:
+         filename,
+         total_frames,
+         detections,
+-        processing_time
+-    
++        processing_time,
++        unique_defect_count=0
++
+         ):
+ 
+         conn = get_connection()
+@@ -176,11 +177,15 @@ class DetectionRepository:
+ 
+             detection_count,
+ 
+-            processing_time
++            processing_time,
++
++            total_frames,
++
++            unique_defect_count
+ 
+         )
+ 
+-            VALUES(?,?,?,?,?,?,?,?,?)
++            VALUES(?,?,?,?,?,?,?,?,?,?,?)
+             """,
+             (
+ 
+@@ -200,11 +205,103 @@ class DetectionRepository:
+ 
+             detections,
+ 
+-            processing_time
++            processing_time,
++
++            total_frames,
++
++            unique_defect_count
+ 
+             )
+             )
+ 
+         conn.commit()
+ 
+-        conn.close()
+\ No newline at end of file
++        conn.close()
++
++    # ----------------------------
++
++    def get_dashboard_stats(self):
++        """
++        Real counts pulled from the detections table, used to replace
++        the dashboard's previously-hardcoded demo numbers.
++
++        - images_analyzed: distinct image filenames processed
++          (image rows are one-row-per-detected-object, so COUNT(*)
++          would overcount; use distinct filenames instead)
++        - videos_analyzed: one row per video session
++          (damage_type == "Video Analysis")
++        - total_detections: individual objects found in images
++          + aggregated detections found in videos
++        - avg_confidence: mean confidence over real image detections
++          only (video session rows store a dummy confidence of 1.0
++          since there's no per-object confidence for a whole video)
++        """
++
++        conn = get_connection()
++
++        images_analyzed = conn.execute("""
++            SELECT COUNT(DISTINCT filename)
++            FROM detections
++            WHERE damage_type != 'Video Analysis'
++        """).fetchone()[0]
++
++        videos_analyzed = conn.execute("""
++            SELECT COUNT(*)
++            FROM detections
++            WHERE damage_type = 'Video Analysis'
++        """).fetchone()[0]
++
++        image_object_count = conn.execute("""
++            SELECT COUNT(*)
++            FROM detections
++            WHERE damage_type != 'Video Analysis'
++        """).fetchone()[0]
++
++        video_detection_sum = conn.execute("""
++            SELECT COALESCE(SUM(detection_count), 0)
++            FROM detections
++            WHERE damage_type = 'Video Analysis'
++        """).fetchone()[0]
++
++        avg_confidence_row = conn.execute("""
++            SELECT AVG(confidence)
++            FROM detections
++            WHERE damage_type != 'Video Analysis'
++        """).fetchone()[0]
++
++        conn.close()
++
++        return {
++            "images_analyzed": images_analyzed,
++            "videos_analyzed": videos_analyzed,
++            "total_detections": image_object_count + video_detection_sum,
++            "avg_confidence": (
++                round(avg_confidence_row, 3)
++                if avg_confidence_row is not None
++                else None
++            ),
++        }
++
++    # ----------------------------
++
++    def get_damage_distribution(self):
++        """
++        Real per-class counts for the dashboard chart, taken only
++        from actual image detections (video session rows use the
++        placeholder damage_type "Video Analysis" and would otherwise
++        pollute this breakdown).
++        """
++
++        conn = get_connection()
++
++        rows = conn.execute("""
++            SELECT damage_type, COUNT(*) as count
++            FROM detections
++            WHERE damage_type != 'Video Analysis'
++            GROUP BY damage_type
++            ORDER BY count DESC
++        """).fetchall()
++
++        conn.close()
++
++        return {row["damage_type"]: row["count"] for row in rows}
+\ No newline at end of file
+diff --git a/pages/3_Video_Analysis.py b/pages/3_Video_Analysis.py
+index 5e61044..c839f8c 100644
+--- a/pages/3_Video_Analysis.py
++++ b/pages/3_Video_Analysis.py
+@@ -93,7 +93,8 @@ if video is not None:
+             filename=video.name,
+             total_frames=total_frames,
+             detections=detection_count,
+-            processing_time=processing_time
++            processing_time=processing_time,
++            unique_defect_count=unique_defect_count
+         )
+ 
+         # ---------------------------------------

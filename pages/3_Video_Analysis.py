@@ -93,7 +93,8 @@ if video is not None:
             filename=video.name,
             total_frames=total_frames,
             detections=detection_count,
-            processing_time=processing_time
+            processing_time=processing_time,
+            unique_defect_count=unique_defect_count
         )
 
         # ---------------------------------------

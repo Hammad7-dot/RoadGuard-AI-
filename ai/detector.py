@@ -58,7 +58,10 @@ class RoadDamageDetector:
 
         result = results[0]
 
-        annotated_image = result.plot()
+        # result.plot() returns a BGR ndarray (Ultralytics draws with cv2
+        # internally). Convert to RGB once here so every caller downstream
+        # (st.image, save_output, etc.) can treat annotated_image as RGB.
+        annotated_image = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
 
         detections = []
 

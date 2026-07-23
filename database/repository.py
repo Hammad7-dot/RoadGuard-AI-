@@ -148,8 +148,9 @@ class DetectionRepository:
         filename,
         total_frames,
         detections,
-        processing_time
-    
+        processing_time,
+        unique_defect_count=0
+
         ):
 
         conn = get_connection()
@@ -176,11 +177,15 @@ class DetectionRepository:
 
             detection_count,
 
-            processing_time
+            processing_time,
+
+            total_frames,
+
+            unique_defect_count
 
         )
 
-            VALUES(?,?,?,?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
 
@@ -200,7 +205,11 @@ class DetectionRepository:
 
             detections,
 
-            processing_time
+            processing_time,
+
+            total_frames,
+
+            unique_defect_count
 
             )
             )
@@ -208,3 +217,91 @@ class DetectionRepository:
         conn.commit()
 
         conn.close()
+
+    # ----------------------------
+
+    def get_dashboard_stats(self):
+        """
+        Real counts pulled from the detections table, used to replace
+        the dashboard's previously-hardcoded demo numbers.
+
+        - images_analyzed: distinct image filenames processed
+          (image rows are one-row-per-detected-object, so COUNT(*)
+          would overcount; use distinct filenames instead)
+        - videos_analyzed: one row per video session
+          (damage_type == "Video Analysis")
+        - total_detections: individual objects found in images
+          + aggregated detections found in videos
+        - avg_confidence: mean confidence over real image detections
+          only (video session rows store a dummy confidence of 1.0
+          since there's no per-object confidence for a whole video)
+        """
+
+        conn = get_connection()
+
+        images_analyzed = conn.execute("""
+            SELECT COUNT(DISTINCT filename)
+            FROM detections
+            WHERE damage_type != 'Video Analysis'
+        """).fetchone()[0]
+
+        videos_analyzed = conn.execute("""
+            SELECT COUNT(*)
+            FROM detections
+            WHERE damage_type = 'Video Analysis'
+        """).fetchone()[0]
+
+        image_object_count = conn.execute("""
+            SELECT COUNT(*)
+            FROM detections
+            WHERE damage_type != 'Video Analysis'
+        """).fetchone()[0]
+
+        video_detection_sum = conn.execute("""
+            SELECT COALESCE(SUM(detection_count), 0)
+            FROM detections
+            WHERE damage_type = 'Video Analysis'
+        """).fetchone()[0]
+
+        avg_confidence_row = conn.execute("""
+            SELECT AVG(confidence)
+            FROM detections
+            WHERE damage_type != 'Video Analysis'
+        """).fetchone()[0]
+
+        conn.close()
+
+        return {
+            "images_analyzed": images_analyzed,
+            "videos_analyzed": videos_analyzed,
+            "total_detections": image_object_count + video_detection_sum,
+            "avg_confidence": (
+                round(avg_confidence_row, 3)
+                if avg_confidence_row is not None
+                else None
+            ),
+        }
+
+    # ----------------------------
+
+    def get_damage_distribution(self):
+        """
+        Real per-class counts for the dashboard chart, taken only
+        from actual image detections (video session rows use the
+        placeholder damage_type "Video Analysis" and would otherwise
+        pollute this breakdown).
+        """
+
+        conn = get_connection()
+
+        rows = conn.execute("""
+            SELECT damage_type, COUNT(*) as count
+            FROM detections
+            WHERE damage_type != 'Video Analysis'
+            GROUP BY damage_type
+            ORDER BY count DESC
+        """).fetchall()
+
+        conn.close()
+
+        return {row["damage_type"]: row["count"] for row in rows}

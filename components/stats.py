@@ -1,5 +1,8 @@
 import streamlit as st
 
+from utils.constants import DAMAGE_CLASSES
+from database.repository import DetectionRepository
+
 
 def stats_section():
 
@@ -8,11 +11,13 @@ def stats_section():
         unsafe_allow_html=True
     )
 
+    stats = DetectionRepository().get_dashboard_stats()
+
     c1, c2, c3, c4 = st.columns(4)
 
     c1.metric(
         "Damage Classes",
-        "7"
+        str(len(DAMAGE_CLASSES))
     )
 
     c2.metric(
@@ -21,11 +26,13 @@ def stats_section():
     )
 
     c3.metric(
-        "Accuracy",
-        "96%"
+        "Avg. Confidence",
+        f"{stats['avg_confidence'] * 100:.1f}%"
+        if stats["avg_confidence"] is not None
+        else "N/A"
     )
 
     c4.metric(
-        "Inference",
-        "18 ms"
+        "Total Detections",
+        stats["total_detections"]
     )

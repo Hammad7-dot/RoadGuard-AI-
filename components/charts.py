@@ -2,45 +2,22 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+from database.repository import DetectionRepository
+
 
 def damage_chart():
 
     st.subheader("Road Damage Statistics")
 
+    distribution = DetectionRepository().get_damage_distribution()
+
+    if not distribution:
+        st.info("No detections yet — run some analyses to populate this chart.")
+        return
+
     df = pd.DataFrame({
-
-        "Damage":[
-
-            "Pothole",
-
-            "Longitudinal",
-
-            "Transverse",
-
-            "Patch",
-
-            "Manhole",
-
-            "Road Marking"
-
-        ],
-
-        "Count":[
-
-            32,
-
-            18,
-
-            12,
-
-            9,
-
-            6,
-
-            4
-
-        ]
-
+        "Damage": list(distribution.keys()),
+        "Count": list(distribution.values())
     })
 
     left,right = st.columns(2)

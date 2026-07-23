@@ -9,30 +9,24 @@ def quick_actions():
 
     with c1:
 
-        st.button(
-
+        if st.button(
             "📤 Upload Image",
-
             use_container_width=True
-
-        )
+        ):
+            st.switch_page("pages/2_Upload_Analysis.py")
 
     with c2:
 
-        st.button(
-
+        if st.button(
             "📹 Open Live Camera",
-
             use_container_width=True
-
-        )
+        ):
+            st.switch_page("pages/4_Live_Monitor.py")
 
     with c3:
 
-        st.button(
-
+        if st.button(
             "📄 Generate Report",
-
             use_container_width=True
-
-        )
+        ):
+            st.switch_page("pages/5_Reports.py")

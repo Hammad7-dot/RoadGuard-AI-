@@ -17,10 +17,9 @@ def feature_section():
 Detect:
 
 - Potholes
-- Cracks
-- Manholes
-- Patch Damage
-- Road Markings
+- Longitudinal Cracks
+- Transverse Cracks
+- Alligator Cracks
 """)
 
     with c2:

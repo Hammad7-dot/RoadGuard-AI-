@@ -36,16 +36,18 @@ def hero_section():
 
         with col1:
 
-            st.button(
+            if st.button(
                 "🚀 Get Started",
                 use_container_width=True,
                 type="primary"
-            )
+            ):
+                st.switch_page("pages/2_Upload_Analysis.py")
 
         with col2:
 
-            st.button(
+            st.link_button(
                 "📄 Documentation",
+                "https://github.com/Hammad7-dot/RoadGuard-AI-#readme",
                 use_container_width=True
             )
 

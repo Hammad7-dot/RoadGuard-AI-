@@ -8,16 +8,19 @@ from the Streamlit rerun bug (same image detected + saved multiple
 times because every widget interaction re-ran the whole page).
 
 A "duplicate" here means rows that share:
-    filename, damage_type, confidence, x1, y1, x2, y2, processing_time
-Real distinct detections will basically never collide on all of
-these at once (processing_time alone is a float with millisecond
-precision), so this is a safe signal for "this got inserted more
-than once by the same rerun", not a false positive on legitimate
-repeat inspections of the same spot.
+    filename, damage_type, confidence, x1, y1, x2, y2
+(processing_time is deliberately NOT part of the signature - it's
+wall-clock inference timing and is never bit-identical between two
+calls, even for the exact same rerun-bug duplicate). Real distinct
+detections will basically never collide on all of these at once, so
+this is a safe signal for "this got inserted more than once by the
+same rerun", not a false positive on legitimate repeat inspections of
+the same spot.
 
 Video-session rows (damage_type == "Video Analysis") are only
-deduped on filename + total_frames + unique_defect_count, since they
-don't have per-object bounding boxes.
+deduped on filename + total_frames + unique_defect_count (or just
+filename + detection_count on older databases without those
+columns), for the same reason.
 
 USAGE
 -----
@@ -60,24 +63,31 @@ def find_duplicate_ids(conn: sqlite3.Connection) -> list:
     ids_to_delete = []
 
     # ---- Image detections ----
+    # NOTE: processing_time is deliberately excluded from the
+    # duplicate signature. It's wall-clock inference time, which
+    # varies by fractions of a second between calls even when
+    # everything else about the detection is identical - so
+    # including it meant true duplicates (from the rerun bug) were
+    # never actually being matched, since their processing_time
+    # values differed slightly every time.
     cursor.execute("""
         SELECT MIN(id) as keep_id, filename, damage_type, confidence,
-               x1, y1, x2, y2, processing_time, COUNT(*) as cnt
+               x1, y1, x2, y2, COUNT(*) as cnt
         FROM detections
         WHERE damage_type != 'Video Analysis'
-        GROUP BY filename, damage_type, confidence, x1, y1, x2, y2, processing_time
+        GROUP BY filename, damage_type, confidence, x1, y1, x2, y2
         HAVING cnt > 1
     """)
     image_groups = cursor.fetchall()
 
     for row in image_groups:
-        keep_id, filename, damage_type, confidence, x1, y1, x2, y2, processing_time, cnt = row
+        keep_id, filename, damage_type, confidence, x1, y1, x2, y2, cnt = row
         cursor.execute("""
             SELECT id FROM detections
             WHERE filename=? AND damage_type=? AND confidence=?
-              AND x1=? AND y1=? AND x2=? AND y2=? AND processing_time=?
+              AND x1=? AND y1=? AND x2=? AND y2=?
               AND id != ?
-        """, (filename, damage_type, confidence, x1, y1, x2, y2, processing_time, keep_id))
+        """, (filename, damage_type, confidence, x1, y1, x2, y2, keep_id))
         ids_to_delete.extend(r[0] for r in cursor.fetchall())
 
     # ---- Video sessions ----
@@ -104,25 +114,26 @@ def find_duplicate_ids(conn: sqlite3.Connection) -> list:
             """, (filename, total_frames, unique_defect_count, keep_id))
             ids_to_delete.extend(r[0] for r in cursor.fetchall())
     else:
-        # Fall back to filename + detection_count + processing_time,
-        # which exist on every schema version, and still describe a
-        # video session uniquely enough for dedup purposes.
+        # Fall back to filename + detection_count, which exists on
+        # every schema version. processing_time is excluded here too
+        # for the same reason as above - it's never bit-identical
+        # between reruns.
         cursor.execute("""
-            SELECT MIN(id) as keep_id, filename, detection_count, processing_time, COUNT(*) as cnt
+            SELECT MIN(id) as keep_id, filename, detection_count, COUNT(*) as cnt
             FROM detections
             WHERE damage_type = 'Video Analysis'
-            GROUP BY filename, detection_count, processing_time
+            GROUP BY filename, detection_count
             HAVING cnt > 1
         """)
         video_groups = cursor.fetchall()
 
         for row in video_groups:
-            keep_id, filename, detection_count, processing_time, cnt = row
+            keep_id, filename, detection_count, cnt = row
             cursor.execute("""
                 SELECT id FROM detections
-                WHERE filename=? AND detection_count=? AND processing_time=?
+                WHERE filename=? AND detection_count=?
                   AND damage_type = 'Video Analysis' AND id != ?
-            """, (filename, detection_count, processing_time, keep_id))
+            """, (filename, detection_count, keep_id))
             ids_to_delete.extend(r[0] for r in cursor.fetchall())
 
     return sorted(set(ids_to_delete))

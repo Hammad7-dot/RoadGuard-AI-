@@ -83,6 +83,25 @@ confidence = st.slider(
 )
 
 # --------------------------------------------------
+# Session-state cache
+# --------------------------------------------------
+# Streamlit reruns this ENTIRE script top-to-bottom on every widget
+# interaction (moving the confidence slider, toggling the location
+# checkbox, nudging a lat/lon field, expanding a panel...). Without
+# caching, that meant every rerun re-ran YOLO inference AND
+# re-inserted the same detections into the database again - so a
+# 3-image batch could log hundreds of duplicate rows just from the
+# user opening a expander. `st.session_state` persists across
+# reruns (as long as the file stays uploaded), so we use it to run
+# detection + the DB save exactly once per unique file per
+# confidence setting.
+
+if "upload_cache" not in st.session_state:
+    st.session_state.upload_cache = {}
+
+CACHE = st.session_state.upload_cache
+
+# --------------------------------------------------
 # Detection
 # --------------------------------------------------
 
@@ -97,6 +116,11 @@ if uploaded_files:
     batch_rows = []
 
     for uploaded_file in uploaded_files:
+
+        # Unique per file *and* per confidence threshold, so changing
+        # the slider re-runs detection (as it should) but re-opening
+        # an expander or toggling GPS does not.
+        file_key = f"{uploaded_file.name}_{uploaded_file.size}_{confidence}"
 
         with st.expander(f"📷 {uploaded_file.name}", expanded=(len(uploaded_files) == 1)):
 
@@ -124,20 +148,48 @@ if uploaded_files:
                     key=f"lon_{uploaded_file.name}_{uploaded_file.size}"
                 )
 
-            start = time.time()
+            # ---------------------------------------------
+            # Run detection only once per file+confidence combo.
+            # Everything below reads from the cached result instead
+            # of recomputing it, so widget interactions elsewhere on
+            # the page don't trigger repeat inference or repeat
+            # database writes.
+            # ---------------------------------------------
 
-            annotated_image, detections = detector.predict(
-                image=image,
-                confidence=confidence
-            )
+            if file_key not in CACHE:
+                start = time.time()
 
-            processing_time = time.time() - start
-
-            # Attach severity to each detection
-            for item in detections:
-                item["Severity"] = _severity(
-                    item["Confidence"], item["Bounding Box"], image_area
+                annotated_image, detections = detector.predict(
+                    image=image,
+                    confidence=confidence
                 )
+
+                processing_time = time.time() - start
+
+                for item in detections:
+                    item["Severity"] = _severity(
+                        item["Confidence"], item["Bounding Box"], image_area
+                    )
+
+                safe_stem = uploaded_file.name.rsplit(".", 1)[0]
+                output_filename = f"{safe_stem}_{uuid.uuid4().hex[:8]}.jpg"
+                output_path = detector.save_output(annotated_image, output_filename)
+
+                CACHE[file_key] = {
+                    "annotated_image": annotated_image,
+                    "detections": detections,
+                    "processing_time": processing_time,
+                    "output_path": output_path,
+                    "output_filename": output_filename,
+                    "saved_to_db": False,
+                }
+
+            cached = CACHE[file_key]
+            annotated_image = cached["annotated_image"]
+            detections = cached["detections"]
+            processing_time = cached["processing_time"]
+            output_path = cached["output_path"]
+            output_filename = cached["output_filename"]
 
             # ---------------------------------------------
 
@@ -199,13 +251,6 @@ if uploaded_files:
             # ---------------------------------------------
             # Download
             # ---------------------------------------------
-            # Unique filename per upload (original name + short id)
-            # so concurrent/batch uploads never overwrite each
-            # other's saved output or serve a stale download.
-            safe_stem = uploaded_file.name.rsplit(".", 1)[0]
-            output_filename = f"{safe_stem}_{uuid.uuid4().hex[:8]}.jpg"
-
-            output_path = detector.save_output(annotated_image, output_filename)
 
             with open(output_path, "rb") as file:
                 st.download_button(
@@ -217,24 +262,27 @@ if uploaded_files:
                 )
 
             # ---------------------------------------------
-            # Save to database
+            # Save to database - only once per cached result, no
+            # matter how many times this script reruns afterward.
             # ---------------------------------------------
 
-            for item in detections:
-                box = item["Bounding Box"]
-                repo.save_detection(
-                    filename=uploaded_file.name,
-                    damage_type=item["Class"],
-                    confidence=item["Confidence"],
-                    x1=box["x1"],
-                    y1=box["y1"],
-                    x2=box["x2"],
-                    y2=box["y2"],
-                    detection_count=len(detections),
-                    processing_time=processing_time,
-                    latitude=latitude if use_location else None,
-                    longitude=longitude if use_location else None,
-                )
+            if not cached["saved_to_db"]:
+                for item in detections:
+                    box = item["Bounding Box"]
+                    repo.save_detection(
+                        filename=uploaded_file.name,
+                        damage_type=item["Class"],
+                        confidence=item["Confidence"],
+                        x1=box["x1"],
+                        y1=box["y1"],
+                        x2=box["x2"],
+                        y2=box["y2"],
+                        detection_count=len(detections),
+                        processing_time=processing_time,
+                        latitude=latitude if use_location else None,
+                        longitude=longitude if use_location else None,
+                    )
+                cached["saved_to_db"] = True
 
             batch_rows.append({
                 "Image": uploaded_file.name,

@@ -23,7 +23,11 @@ class DetectionRepository:
 
         detection_count,
 
-        processing_time
+        processing_time,
+
+        latitude=None,
+
+        longitude=None
 
     ):
 
@@ -51,11 +55,15 @@ class DetectionRepository:
 
         detection_count,
 
-        processing_time
+        processing_time,
+
+        latitude,
+
+        longitude
 
         )
 
-        VALUES(?,?,?,?,?,?,?,?,?)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
 
         """,
 
@@ -77,7 +85,11 @@ class DetectionRepository:
 
         detection_count,
 
-        processing_time
+        processing_time,
+
+        latitude,
+
+        longitude
 
         )
 
@@ -286,6 +298,28 @@ class DetectionRepository:
                 else None
             ),
         }
+
+    # ----------------------------
+
+    def get_geotagged(self):
+        """
+        Detections that have GPS coordinates attached (either read
+        from the image's EXIF data or entered manually on upload),
+        for plotting on the Reports page map.
+        """
+
+        conn = get_connection()
+
+        rows = conn.execute("""
+            SELECT *
+            FROM detections
+            WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+            ORDER BY id DESC
+        """).fetchall()
+
+        conn.close()
+
+        return [dict(row) for row in rows]
 
     # ----------------------------
 

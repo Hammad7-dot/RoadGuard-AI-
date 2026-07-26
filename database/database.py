@@ -81,6 +81,16 @@ def _migrate_schema():
             "ALTER TABLE detections ADD COLUMN unique_defect_count INTEGER"
         )
 
+    if "latitude" not in existing_columns:
+        cursor.execute(
+            "ALTER TABLE detections ADD COLUMN latitude REAL"
+        )
+
+    if "longitude" not in existing_columns:
+        cursor.execute(
+            "ALTER TABLE detections ADD COLUMN longitude REAL"
+        )
+
     conn.commit()
 
     conn.close()

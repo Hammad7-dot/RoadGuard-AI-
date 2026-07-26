@@ -9,3 +9,4 @@ psutil>=5.9,<7
 streamlit-webrtc>=0.47,<1
 av>=15.1,<19
 lap>=0.5,<1
+reportlab>=4.0,<5

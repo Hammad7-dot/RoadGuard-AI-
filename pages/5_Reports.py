@@ -3,6 +3,7 @@ import streamlit as st
 
 from components.sidebar import Sidebar
 from database.repository import DetectionRepository
+from utils.pdf_report import build_report
 
 st.set_page_config(
     page_title="Detection History",
@@ -86,7 +87,45 @@ c4.metric(
     len(video_rows)
 )
 
+geotagged = repo.get_geotagged()
+
+pdf_bytes = build_report(
+    stats={
+        "images_analyzed": len(image_rows["filename"].unique()) if not image_rows.empty else 0,
+        "videos_analyzed": len(video_rows),
+        "total_detections": len(df),
+        "avg_confidence": (average / 100) if not image_rows.empty else None,
+    },
+    distribution=(
+        image_rows["damage_type"].value_counts().to_dict()
+        if not image_rows.empty else {}
+    ),
+    rows=rows,
+    geotagged=geotagged,
+)
+
+st.download_button(
+    "📄 Export PDF Inspection Report",
+    pdf_bytes,
+    file_name="roadguard_inspection_report.pdf",
+    mime="application/pdf",
+)
+
 st.divider()
+
+# ---------------------------------
+# Map of geotagged detections
+# ---------------------------------
+
+if geotagged:
+
+    st.subheader("🗺️ Detection Map")
+    st.caption("Detections with GPS coordinates attached at upload time.")
+
+    map_df = pd.DataFrame(geotagged)[["latitude", "longitude"]]
+    st.map(map_df, latitude="latitude", longitude="longitude")
+
+    st.divider()
 
 # ---------------------------------
 # Video Sessions

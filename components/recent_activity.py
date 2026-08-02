@@ -24,7 +24,10 @@ def recent_activity():
             for r in recent
         ],
         "Damage": [r["damage_type"] for r in recent],
-        "Confidence": [f"{r['confidence'] * 100:.0f}%" for r in recent],
+        "Confidence": [
+            f"{r['confidence'] * 100:.0f}%" if r["confidence"] is not None else "-"
+            for r in recent
+        ],
     })
 
     st.dataframe(

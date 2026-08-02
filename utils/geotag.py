@@ -14,7 +14,7 @@ callers should let the user enter coordinates manually in that case.
 from typing import Optional, Tuple
 
 from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
+from PIL.ExifTags import GPSTAGS, IFD
 
 
 def _to_degrees(value) -> float:
@@ -34,13 +34,25 @@ def extract_gps(image: Image.Image) -> Optional[Tuple[float, float]]:
         if not exif:
             return None
 
-        gps_info = {}
-        for tag_id, value in exif.items():
-            tag = TAGS.get(tag_id, tag_id)
-            if tag == "GPSInfo":
-                for gps_tag_id, gps_value in value.items():
-                    gps_tag = GPSTAGS.get(gps_tag_id, gps_tag_id)
-                    gps_info[gps_tag] = gps_value
+        # BUG (fixed): exif.items() at the top level only yields a raw
+        # integer byte-offset for the GPSInfo tag (0x8825/34853), not
+        # the actual GPS sub-IFD dict — Pillow stores GPS data in a
+        # separate IFD that has to be fetched explicitly via
+        # get_ifd(). The old code iterated exif.items() looking for a
+        # dict value under "GPSInfo" and never found one, so every
+        # real photo with GPS data silently returned None.
+        try:
+            raw_gps_ifd = exif.get_ifd(IFD.GPSInfo)
+        except (KeyError, AttributeError):
+            raw_gps_ifd = {}
+
+        if not raw_gps_ifd:
+            return None
+
+        gps_info = {
+            GPSTAGS.get(tag_id, tag_id): value
+            for tag_id, value in raw_gps_ifd.items()
+        }
 
         if not gps_info:
             return None

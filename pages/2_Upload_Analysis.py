@@ -267,20 +267,30 @@ if uploaded_files:
             # ---------------------------------------------
 
             if not cached["saved_to_db"]:
-                for item in detections:
-                    box = item["Bounding Box"]
-                    repo.save_detection(
+                if detections:
+                    for item in detections:
+                        box = item["Bounding Box"]
+                        repo.save_detection(
+                            filename=uploaded_file.name,
+                            damage_type=item["Class"],
+                            confidence=item["Confidence"],
+                            x1=box["x1"],
+                            y1=box["y1"],
+                            x2=box["x2"],
+                            y2=box["y2"],
+                            detection_count=len(detections),
+                            processing_time=processing_time,
+                            latitude=latitude if use_location else None,
+                            longitude=longitude if use_location else None,
+                        )
+                else:
+                    # BUG (fixed): a clean image with zero detections
+                    # used to produce no DB row at all, making it
+                    # invisible to "Images Analyzed", Recent Activity,
+                    # and the Reports history/CSV. Log it explicitly.
+                    repo.save_no_damage(
                         filename=uploaded_file.name,
-                        damage_type=item["Class"],
-                        confidence=item["Confidence"],
-                        x1=box["x1"],
-                        y1=box["y1"],
-                        x2=box["x2"],
-                        y2=box["y2"],
-                        detection_count=len(detections),
                         processing_time=processing_time,
-                        latitude=latitude if use_location else None,
-                        longitude=longitude if use_location else None,
                     )
                 cached["saved_to_db"] = True
 

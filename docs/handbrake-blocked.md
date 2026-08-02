@@ -37,6 +37,53 @@ as a hard stop, not a checklist to talk yourself past.
   explicit sign-off — this is a legal/IP decision, not an engineering one.
 - **Auto-merging any PR that skips the R10 test-before-merge step.**
 
+## Merge Blockers
+A PR must not be merged if any of these are true:
+- Syntax compilation fails (`python -m compileall .`).
+- Required dependencies cannot be imported in the target environment.
+- The YOLO model file is missing or cannot be loaded.
+- Upload, video, live monitor, dashboard, or report pages crash on startup.
+- Database migration fails or drops existing detection history.
+- Duplicate detections are written from normal Streamlit reruns (see the
+  session-state caching pattern in `pages/2_Upload_Analysis.py`).
+- Report exports (PDF/CSV) contain misleading totals, confidence values, or
+  geolocation data.
+- Uploaded media, generated outputs, SQLite databases, caches, or local
+  settings are staged for commit.
+
+## Release Blockers
+Do not ship/demo a change if any of these haven't been done:
+- No manual verification recorded for changed Streamlit pages.
+- No sample image or video used to confirm model output after an
+  inference-affecting change.
+- Camera behavior changed without checking permission-denied and
+  unavailable-camera states.
+- Geotag handling changed without checking missing EXIF, invalid
+  coordinates, and manually entered coordinates (see D9 — this exact area
+  had a real, previously-shipped bug).
+- PDF or CSV export changes made without opening and inspecting the output.
+
+## Handbrake Procedure
+If a merge/release blocker is hit:
+1. Stop the release or merge.
+2. Write the blocker into this file (or `docs/DECISIONS.md` if
+   architectural) with date, command run, failure observed, and suspected
+   owner.
+3. Create or update the spec (`docs/SPEC.md`) with the missing acceptance
+   criteria.
+4. Fix the issue in the smallest safe change.
+5. Re-run the relevant checks and record the result in
+   `docs/TEST_REPORT.md`.
+
+## Environment Notes (resolved, kept for reference)
+`ultralytics` writes settings to a per-OS user config directory by default
+(e.g. `%APPDATA%\Ultralytics\settings.json` on Windows), which can fail to
+import in a sandboxed environment without write access there. This was hit
+and fixed by having model-loading/training entry points set
+`YOLO_CONFIG_DIR` to a project-local path before `ultralytics` is imported
+(see `utils/ultralytics_config.py`, RULES.md R16). Not a currently-open
+blocker — recorded so it isn't rediscovered as a new bug.
+
 ## Not blocked, but requires a `docs/DECISIONS.md` entry first
 - Changing the severity-scoring formula in `pages/2_Upload_Analysis.py`.
 - Changing frame-sampling rate in video/webcam analysis.

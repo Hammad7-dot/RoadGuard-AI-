@@ -60,3 +60,48 @@ Some actions are hard-blocked regardless of who asks or how urgently.
 See `docs/handbrake-blocked.md`. These are not "ask a human first" —
 they are "do not do this in this repo, period" until that file is
 explicitly revised by the maintainer.
+
+## R12 — Thin pages, logic in modules
+Keep `pages/*.py` focused on layout and wiring. Reusable logic belongs in
+`ai/`, `database/`, `components/`, or `utils/`, not duplicated inline
+across pages.
+
+## R13 — Parameterized SQL only
+Every query in `database/` uses `?` placeholders — never string-interpolate
+user input (filenames, search terms, coordinates) into SQL.
+
+## R14 — Close connections
+Every `get_connection()` call is paired with `conn.close()` on every code
+path, including error paths.
+
+## R15 — Geolocation is sensitive by default
+Only attach latitude/longitude to a detection when it was explicitly read
+from EXIF or entered by the user (see `use_location` checkbox in
+`pages/2_Upload_Analysis.py`). Never infer or guess coordinates.
+
+## R16 — Local Ultralytics config
+`ultralytics` writes settings to a per-OS user config dir by default, which
+can fail to import in sandboxed/restricted environments (e.g. no write
+access to `%APPDATA%\Ultralytics` on Windows). Model-loading and training
+entry points must configure `YOLO_CONFIG_DIR` to a project-local writable
+path (see `utils/ultralytics_config.py`) *before* `ultralytics` is
+imported, so the app doesn't fail to start in a fresh environment.
+
+## R17 — Test command for this repo
+Before submitting a change: `python -m compileall .` must pass. If working
+in a restricted environment, set `YOLO_CONFIG_DIR` first (see R16). Add
+unit tests for new pure logic (e.g. `tests/test_detector_metrics.py`) and
+use a temporary/throwaway database for repository tests — never the real
+`database/roadguard.db`.
+
+## R18 — Manual verification for UI-affecting changes
+Any change touching uploads, video, live camera, reports, maps, or
+dashboard behavior needs a manual click-through of the affected page(s) —
+py_compile passing is necessary but not sufficient. Record what was
+checked in `docs/TEST_REPORT.md`.
+
+## R19 — Keep docs in sync with behavior
+Update `README.md` and/or `docs/` whenever setup steps, commands, user
+workflows, the database schema, or output file locations change. Document
+any manual test that can't yet be automated. Docs should be
+command-first and specific to this repo, not generic boilerplate.

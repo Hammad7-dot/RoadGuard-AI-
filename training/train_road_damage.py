@@ -63,6 +63,10 @@ load_model(), so no other code changes are needed.
 import argparse
 from pathlib import Path
 
+from utils.ultralytics_config import configure_ultralytics_settings
+
+configure_ultralytics_settings()
+
 from ultralytics import YOLO
 
 

@@ -1,16 +1,11 @@
 import pandas as pd
 import streamlit as st
 
-from components.sidebar import Sidebar
 from database.repository import DetectionRepository
 from utils.pdf_report import build_report
+from utils.page import init_page
 
-st.set_page_config(
-    page_title="Detection History",
-    layout="wide"
-)
-
-Sidebar().render()
+init_page("Detection History", "📄")
 
 st.title("📄 Detection History")
 
@@ -89,20 +84,21 @@ c4.metric(
 
 geotagged = repo.get_geotagged()
 
-pdf_bytes = build_report(
-    stats={
-        "images_analyzed": len(image_rows["filename"].unique()) if not image_rows.empty else 0,
-        "videos_analyzed": len(video_rows),
-        "total_detections": len(df),
-        "avg_confidence": (average / 100) if not image_rows.empty else None,
-    },
-    distribution=(
-        image_rows["damage_type"].value_counts().to_dict()
-        if not image_rows.empty else {}
-    ),
-    rows=rows,
-    geotagged=geotagged,
-)
+with st.spinner("Building PDF report..."):
+    pdf_bytes = build_report(
+        stats={
+            "images_analyzed": len(image_rows["filename"].unique()) if not image_rows.empty else 0,
+            "videos_analyzed": len(video_rows),
+            "total_detections": len(df),
+            "avg_confidence": (average / 100) if not image_rows.empty else None,
+        },
+        distribution=(
+            image_rows["damage_type"].value_counts().to_dict()
+            if not image_rows.empty else {}
+        ),
+        rows=rows,
+        geotagged=geotagged,
+    )
 
 st.download_button(
     "📄 Export PDF Inspection Report",
@@ -186,7 +182,11 @@ if not df.empty:
         df["id"].tolist()
     )
 
-    if st.button("Delete Selected Record"):
+    confirm_delete = st.checkbox(
+        f"I confirm I want to permanently delete record #{record_id}"
+    )
+
+    if st.button("Delete Selected Record", disabled=not confirm_delete):
 
         repo.delete(record_id)
 

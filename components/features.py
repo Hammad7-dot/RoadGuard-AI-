@@ -1,6 +1,20 @@
 import streamlit as st
 
 
+def _card(icon: str, title: str, items: list):
+    items_html = "".join(f"<li>{item}</li>" for item in items)
+    st.markdown(
+        f"""
+        <div class="rg-card">
+            <div class="rg-card-icon">{icon}</div>
+            <div class="rg-card-title">{title}</div>
+            <ul class="rg-card-list">{items_html}</ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def feature_section():
 
     st.markdown(
@@ -11,33 +25,37 @@ def feature_section():
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        st.info("""
-### 🎯 AI Detection
-
-Detect:
-
-- Potholes
-- Longitudinal Cracks
-- Transverse Cracks
-- Alligator Cracks
-""")
+        _card(
+            "🎯",
+            "AI Detection",
+            [
+                "Potholes",
+                "Longitudinal Cracks",
+                "Transverse Cracks",
+                "Alligator Cracks",
+            ],
+        )
 
     with c2:
-        st.success("""
-### 📹 Live Monitoring
-
-- Webcam
-- Video
-- Real-time Detection
-- Instant Alerts
-""")
+        _card(
+            "📹",
+            "Live Monitoring",
+            [
+                "Webcam",
+                "Video",
+                "Real-time Detection",
+                "Instant Alerts",
+            ],
+        )
 
     with c3:
-        st.warning("""
-### 📊 Analytics
-
-- Reports
-- Charts
-- Detection History
-- Statistics
-""")
+        _card(
+            "📊",
+            "Analytics",
+            [
+                "Reports",
+                "Charts",
+                "Detection History",
+                "Statistics",
+            ],
+        )

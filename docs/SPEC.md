@@ -85,12 +85,30 @@ Annotated frame + detections list
 - `pages/1_Dashboard.py`: aggregate stats from real DB queries (not mocked —
   fixed in `7eb650a`/`efc7ab6`, which replaced fake dashboard numbers).
 - `pages/2_Upload_Analysis.py`: image upload → detection → severity → save.
+  Per-file cache/widget keys are derived from an MD5 hash of the file's
+  content (not filename+size, which two different same-sized files with
+  the same name could collide on).
 - `pages/3_Video_Analysis.py`: video file → frame-sampled detection.
+  Disk writes, detection, and the DB save are all keyed on a content hash +
+  confidence via `st.session_state` (same pattern as page 2), so a rerun
+  doesn't rewrite the file or duplicate the DB row, and two uploads sharing
+  a filename don't overwrite each other's output.
 - `pages/4_Live_Monitor.py`: webcam via `streamlit-webrtc`.
 - `pages/5_Reports.py`: history + PDF export via `utils/pdf_report.py`.
+  Deleting a record requires an explicit confirmation checkbox before the
+  delete button is enabled — deletion is irreversible.
 - **Spec rule:** every dashboard number displayed must trace to a live DB
   query. No hardcoded/demo stats are permitted (this was a real regression
   before; don't reintroduce it).
+- **Shared page bootstrap:** every page (and `app.py`) calls
+  `utils/page.py::init_page(title, icon)` instead of separately calling
+  `st.set_page_config` + `load_css()` + `Sidebar().render()`. Any new page
+  must go through this helper so styling/sidebar stay consistent (this was
+  previously copy-pasted per page, and `pages/5_Reports.py` had silently
+  dropped the `load_css()` call).
+- **Shared confidence slider:** `components/confidence_slider.py` is the
+  single definition used by pages 2/3/4 — don't redefine the slider inline
+  in a new page.
 
 ### 3.7 Geotagging — `utils/geotag.py`
 - Extracts GPS EXIF from uploaded images when present; optional, must not
@@ -100,6 +118,17 @@ Annotated frame + detections list
 - Offline/manual script to collapse duplicate detection rows. Not run
   automatically by the app. Spec rule: keep it idempotent — running it twice
   must not change the result of running it once.
+
+### 3.9 Error handling — video and live camera
+- `ai/video_detector.py::VideoDetector.process_video` raises
+  `VideoDecodeError` (not a silent no-op) if the input file can't be opened,
+  reports invalid (zero) dimensions, or the output `VideoWriter` can't be
+  opened. `pages/3_Video_Analysis.py` catches this and shows `st.error`
+  instead of a raw traceback or a silently empty output file.
+- `ai/webcam_detector.py::LiveVideoProcessor.recv` catches exceptions from
+  a single bad frame's inference and falls back to returning the raw
+  (unannotated) frame, so one bad frame doesn't kill the WebRTC background
+  thread and drop the whole live session.
 
 ## 4. Non-Functional Requirements
 - Python 3.8+ (repo claims); model loading via `ultralytics` requires enough

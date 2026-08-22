@@ -2,32 +2,23 @@ import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 
 from ai.webcam_detector import LiveVideoProcessor
-from components.sidebar import Sidebar
-from utils.styles import load_css
+from components.confidence_slider import confidence_slider
+from utils.page import init_page
 
 # ---------------------------------------------------
 # Page Config
 # ---------------------------------------------------
 
-st.set_page_config(
-    page_title="Live Monitor",
-    page_icon="📹",
-    layout="wide"
-)
-
-load_css()
-Sidebar().render()
+init_page("Live Monitor", "📹")
 
 st.title("📹 Live Camera Monitor")
 st.caption("Real-time road damage tracking from your live camera feed.")
-
-confidence = st.slider(
-    "Confidence Threshold",
-    min_value=0.10,
-    max_value=1.00,
-    value=0.50,
-    step=0.05
+st.caption(
+    "If the camera doesn't start, check that your browser has permission "
+    "to use the camera for this site and that no other app is using it."
 )
+
+confidence = confidence_slider(key="live_confidence")
 
 # STUN server so the browser can establish a live WebRTC connection
 # even when Streamlit is running on a remote/cloud host.

@@ -16,4 +16,6 @@ database/*.db
 .idea/
 .vscode/
 
+Ultralytics/
+
 .DS_Store

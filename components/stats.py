@@ -1,6 +1,6 @@
 import streamlit as st
 
-from utils.constants import DAMAGE_CLASSES
+from utils.constants import DAMAGE_CLASSES, MODEL_NAME
 from database.repository import DetectionRepository
 
 
@@ -21,8 +21,8 @@ def stats_section():
     )
 
     c2.metric(
-        "YOLO Model",
-        "v8"
+        "AI Model",
+        MODEL_NAME
     )
 
     c3.metric(

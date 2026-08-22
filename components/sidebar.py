@@ -1,6 +1,7 @@
 import streamlit as st
 
 from database.repository import DetectionRepository
+from utils.constants import VERSION
 
 
 class Sidebar:
@@ -40,4 +41,4 @@ class Sidebar:
 
             st.divider()
 
-            st.caption("RoadGuard AI • v1.0.0")
+            st.caption(f"RoadGuard AI • v{VERSION}")

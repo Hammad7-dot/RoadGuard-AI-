@@ -98,23 +98,30 @@ class LiveVideoProcessor(VideoProcessorBase):
 
         start = time.time()
 
-        results = self.model.track(
-            source=img,
-            conf=self.confidence,
-            persist=True,       # keep track state between calls
-            tracker="bytetrack.yaml",
-            verbose=False
-        )
+        try:
+            results = self.model.track(
+                source=img,
+                conf=self.confidence,
+                persist=True,       # keep track state between calls
+                tracker="bytetrack.yaml",
+                verbose=False
+            )
 
-        result = results[0]
-        annotated = result.plot()  # BGR ndarray with boxes + track IDs drawn
+            result = results[0]
+            annotated = result.plot()  # BGR ndarray with boxes + track IDs drawn
 
-        if result.boxes is not None:
-            self.last_detection_count = len(result.boxes)
-            if result.boxes.id is not None:
-                for track_id in result.boxes.id.tolist():
-                    self.seen_track_ids.add(int(track_id))
-        else:
+            if result.boxes is not None:
+                self.last_detection_count = len(result.boxes)
+                if result.boxes.id is not None:
+                    for track_id in result.boxes.id.tolist():
+                        self.seen_track_ids.add(int(track_id))
+            else:
+                self.last_detection_count = 0
+        except Exception:
+            # A single bad frame shouldn't kill the WebRTC stream -
+            # fall back to showing the raw (unannotated) frame instead
+            # of crashing the background video thread.
+            annotated = img
             self.last_detection_count = 0
 
         elapsed = time.time() - start

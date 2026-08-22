@@ -10,6 +10,10 @@ AI Road Guard is an AI-powered road safety system that detects traffic violation
 - **Deep learning models** trained for road safety analysis
 - Interactive **Streamlit** web interface
 
+## 🎥 Demo
+
+![RoadGuard AI Demo](assets/roadguard_demo.gif)
+
 ## 🗂️ Project Structure
 
 ```

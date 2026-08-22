@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(KMP_DUPLICATE_LIB_OK=TRUE timeout 300 python -m pipeline.run_pipeline --source data/videos/traffic.mp4 --output-video /tmp/anpr_test_output.mp4 --output-csv /tmp/anpr_test_output.csv --db /tmp/anpr_test.db)",
+      "Bash(python -c ' *)",
+      "Read(//c/Users/dell/AppData/Local/Temp/**)",
+      "Bash(KMP_DUPLICATE_LIB_OK=TRUE nohup streamlit run app/streamlit_app.py --server.headless true --server.port 8502)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8502)"
+    ]
+  }
+}

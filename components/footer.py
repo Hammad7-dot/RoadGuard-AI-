@@ -1,21 +1,18 @@
 import streamlit as st
 
+from utils.constants import VERSION
+
 
 def footer():
 
     st.divider()
 
     st.markdown(
-        """
-<center>
-
-RoadGuard AI • Version 1.0
-
-Made with ❤️ using
-
-Python • Streamlit • YOLOv8
-
-</center>
+        f"""
+        <div class="rg-footer">
+            <strong>RoadGuard AI</strong> • Version {VERSION}<br>
+            Made with ❤️ using Python • Streamlit • YOLOv8
+        </div>
         """,
         unsafe_allow_html=True
     )

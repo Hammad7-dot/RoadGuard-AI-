@@ -1,24 +1,18 @@
+import hashlib
 import os
 import time
 import streamlit as st
 
-from ai.video_detector import VideoDetector
+from ai.video_detector import VideoDetector, VideoDecodeError
 from database.repository import DetectionRepository
-from components.sidebar import Sidebar
-from utils.styles import load_css
+from components.confidence_slider import confidence_slider
+from utils.page import init_page
 
 # ---------------------------------------------------
 # Page Config
 # ---------------------------------------------------
 
-st.set_page_config(
-    page_title="Video Analysis",
-    page_icon="🎥",
-    layout="wide"
-)
-
-load_css()
-Sidebar().render()
+init_page("Video Analysis", "🎥")
 
 st.title("🎥 Video Analysis")
 st.caption("Upload a road video for AI-powered road damage detection.")
@@ -32,70 +26,98 @@ video = st.file_uploader(
     type=["mp4", "avi", "mov"]
 )
 
-confidence = st.slider(
-    "Confidence Threshold",
-    min_value=0.10,
-    max_value=1.00,
-    value=0.50,
-    step=0.05
-)
+confidence = confidence_slider(key="video_confidence")
 
 # ---------------------------------------------------
 # Process Video
 # ---------------------------------------------------
+
+if "video_cache" not in st.session_state:
+    st.session_state.video_cache = {}
+
+CACHE = st.session_state.video_cache
 
 if video is not None:
 
     os.makedirs("uploads/videos", exist_ok=True)
     os.makedirs("outputs/videos", exist_ok=True)
 
-    input_path = os.path.join(
-        "uploads/videos",
-        video.name
-    )
+    # Keyed on content hash + confidence, not just the filename, so
+    # two different uploads that happen to share a name don't
+    # overwrite each other's output on disk, and moving the
+    # confidence slider or re-running the script doesn't re-write the
+    # file or re-run detection unnecessarily.
+    content_hash = hashlib.md5(video.getvalue()).hexdigest()[:12]
+    video_key = f"{content_hash}_{confidence}"
 
-    output_path = os.path.join(
-        "outputs/videos",
-        video.name
-    )
+    safe_stem = video.name.rsplit(".", 1)[0]
+    unique_name = f"{safe_stem}_{content_hash}.mp4"
 
-    with open(input_path, "wb") as f:
-        f.write(video.read())
+    input_path = os.path.join("uploads/videos", f"{content_hash}_{video.name}")
+    output_path = os.path.join("outputs/videos", unique_name)
+
+    if video_key not in CACHE:
+        with open(input_path, "wb") as f:
+            f.write(video.getvalue())
 
     if st.button("🚀 Start Detection", use_container_width=True):
 
-        detector = VideoDetector()
-        repo = DetectionRepository()
+        if video_key in CACHE:
+            # Already processed this exact file+confidence combo -
+            # reuse the cached result instead of re-running inference
+            # and writing a duplicate database row.
+            cached = CACHE[video_key]
+            output_file = cached["output_file"]
+            detection_count = cached["detection_count"]
+            total_frames = cached["total_frames"]
+            unique_defect_count = cached["unique_defect_count"]
+            processing_time = cached["processing_time"]
+            st.info("Already processed - showing cached result.")
+        else:
+            detector = VideoDetector()
+            repo = DetectionRepository()
 
-        progress = st.progress(0)
-        status = st.empty()
+            progress = st.progress(0)
+            status = st.empty()
 
-        start_time = time.time()
+            start_time = time.time()
 
-        with st.spinner("Running YOLOv8..."):
+            try:
+                with st.spinner("Running YOLOv8..."):
 
-            output_file, detection_count, total_frames, unique_defect_count = detector.process_video(
-                input_path=input_path,
-                output_path=output_path,
-                confidence=confidence
+                    output_file, detection_count, total_frames, unique_defect_count = detector.process_video(
+                        input_path=input_path,
+                        output_path=output_path,
+                        confidence=confidence
+                    )
+            except VideoDecodeError as exc:
+                st.error(f"Could not process this video: {exc}")
+                st.stop()
+
+            processing_time = time.time() - start_time
+
+            progress.progress(100)
+            status.success("Video Processing Completed!")
+
+            # ---------------------------------------
+            # Save Detection Session
+            # ---------------------------------------
+
+            repo.save_video_session(
+                filename=video.name,
+                total_frames=total_frames,
+                detections=detection_count,
+                processing_time=processing_time,
+                unique_defect_count=unique_defect_count
             )
 
-        processing_time = time.time() - start_time
-
-        progress.progress(100)
-        status.success("Video Processing Completed!")
-
-        # ---------------------------------------
-        # Save Detection Session
-        # ---------------------------------------
-
-        repo.save_video_session(
-            filename=video.name,
-            total_frames=total_frames,
-            detections=detection_count,
-            processing_time=processing_time,
-            unique_defect_count=unique_defect_count
-        )
+            CACHE[video_key] = {
+                "output_file": output_file,
+                "detection_count": detection_count,
+                "total_frames": total_frames,
+                "unique_defect_count": unique_defect_count,
+                "processing_time": processing_time,
+            }
 
         # ---------------------------------------
         # Statistics

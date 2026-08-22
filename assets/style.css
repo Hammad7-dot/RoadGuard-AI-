@@ -1,135 +1,201 @@
-/* Background */
+/* ==========================================================
+   RoadGuard AI — Design Tokens
+   ========================================================== */
 
-.main{
-
-background:linear-gradient(180deg,#08101D,#0F172A);
-
+:root {
+  --rg-bg-start: #08101D;
+  --rg-bg-end: #0F172A;
+  --rg-surface: #172334;
+  --rg-surface-hover: #1E293B;
+  --rg-accent: #7C3AED;
+  --rg-accent-2: #8B5CF6;
+  --rg-accent-3: #2563EB;
+  --rg-text: #FFFFFF;
+  --rg-text-secondary: #CBD5E1;
+  --rg-text-muted: #94A3B8;
+  --rg-border: rgba(255, 255, 255, 0.08);
+  --rg-radius-lg: 20px;
+  --rg-radius-md: 16px;
+  --rg-radius-sm: 12px;
 }
 
-/* Hero */
+/* ==========================================================
+   Background
+   ========================================================== */
 
-.hero-title{
-
-font-size:58px;
-
-font-weight:800;
-
-margin-top:40px;
-
-color:white;
-
+.main {
+  background: linear-gradient(180deg, var(--rg-bg-start), var(--rg-bg-end));
 }
 
-.purple{
+/* ==========================================================
+   Hero
+   ========================================================== */
 
-color:#8B5CF6;
-
+.hero-title {
+  font-size: clamp(32px, 6vw, 58px);
+  font-weight: 800;
+  margin-top: 40px;
+  color: var(--rg-text);
+  line-height: 1.15;
 }
 
-.hero-subtitle{
-
-font-size:20px;
-
-line-height:1.8;
-
-margin-top:20px;
-
-color:#CBD5E1;
-
+.purple {
+  color: var(--rg-accent-2);
 }
 
-/* Buttons */
-
-.stButton>button{
-
-border-radius:12px;
-
-height:48px;
-
-font-size:17px;
-
-font-weight:bold;
-
+.hero-subtitle {
+  font-size: clamp(15px, 2vw, 20px);
+  line-height: 1.8;
+  margin-top: 20px;
+  color: var(--rg-text-secondary);
 }
 
-/* Metric Cards */
+/* ==========================================================
+   Buttons
+   ========================================================== */
 
-div[data-testid="metric-container"]{
-
-background:#172334;
-
-padding:20px;
-
-border-radius:16px;
-
-border:1px solid rgba(255,255,255,.08);
-
+.stButton > button {
+  border-radius: var(--rg-radius-sm);
+  height: 48px;
+  font-size: 17px;
+  font-weight: bold;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Info Cards */
-
-div[data-testid="stAlert"]{
-
-border-radius:15px;
-
+.stButton > button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.25);
 }
 
-.banner{
+/* ==========================================================
+   Metric cards
+   ========================================================== */
 
-background:linear-gradient(
-90deg,
-#7C3AED,
-#2563EB
-);
-
-padding:30px;
-
-border-radius:20px;
-
-margin-bottom:20px;
-
-color:white;
-
+div[data-testid="metric-container"] {
+  background: var(--rg-surface);
+  padding: 20px;
+  border-radius: var(--rg-radius-md);
+  border: 1px solid var(--rg-border);
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-.banner h1{
-
-font-size:42px;
-
-margin-bottom:10px;
-
+div[data-testid="metric-container"]:hover {
+  transform: translateY(-4px);
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
-.banner p{
+/* ==========================================================
+   Alert boxes (used sparingly for actual alerts, not cards)
+   ========================================================== */
 
-font-size:18px;
-
+div[data-testid="stAlert"] {
+  border-radius: 15px;
 }
 
-div[data-testid="metric-container"]{
+/* ==========================================================
+   Banner (page headers)
+   ========================================================== */
 
-background:#172334;
-
-padding:18px;
-
-border-radius:15px;
-
-border:1px solid rgba(255,255,255,.08);
-
+.banner {
+  background: linear-gradient(90deg, var(--rg-accent), var(--rg-accent-3));
+  padding: 30px;
+  border-radius: var(--rg-radius-lg);
+  margin-bottom: 20px;
+  color: var(--rg-text);
 }
 
-div[data-testid="metric-container"]:hover{
-
-transform:translateY(-5px);
-
-transition:.3s;
-
+.banner h1 {
+  font-size: clamp(26px, 4vw, 42px);
+  margin-bottom: 10px;
 }
 
-.stDataFrame{
+.banner p {
+  font-size: clamp(14px, 2vw, 18px);
+}
 
-border-radius:15px;
+/* ==========================================================
+   Feature / content cards
+   ========================================================== */
 
-overflow:hidden;
+.rg-card {
+  background: var(--rg-surface);
+  border: 1px solid var(--rg-border);
+  border-radius: var(--rg-radius-md);
+  padding: 26px 22px;
+  height: 100%;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
 
+.rg-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.rg-card-icon {
+  font-size: 34px;
+  margin-bottom: 10px;
+}
+
+.rg-card-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--rg-text);
+  margin-bottom: 10px;
+}
+
+.rg-card-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--rg-text-secondary);
+  font-size: 14.5px;
+  line-height: 1.9;
+}
+
+/* ==========================================================
+   Footer
+   ========================================================== */
+
+.rg-footer {
+  text-align: center;
+  color: var(--rg-text-muted);
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 10px 0;
+}
+
+.rg-footer strong {
+  color: var(--rg-text-secondary);
+}
+
+/* ==========================================================
+   Dataframes
+   ========================================================== */
+
+.stDataFrame {
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+/* ==========================================================
+   Responsive
+   ========================================================== */
+
+@media (max-width: 768px) {
+  .hero-title {
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  .hero-subtitle {
+    text-align: center;
+  }
+
+  .banner {
+    padding: 20px;
+  }
+
+  .rg-card {
+    padding: 20px 16px;
+  }
 }

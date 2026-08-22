@@ -1,20 +1,18 @@
-import streamlit as st
-
-from utils.styles import load_css
+from utils.page import init_page
 from components.hero import hero_section
 from components.features import feature_section
 from components.stats import stats_section
 from components.about import about_section
 from components.footer import footer
 
-st.set_page_config(
-    page_title="RoadGuard AI",
-    page_icon="🛣️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+import streamlit as st
 
-load_css()
+init_page(
+    "RoadGuard AI",
+    "🛣️",
+    show_sidebar=False,
+    sidebar_state="collapsed",
+)
 
 hero_section()
 

@@ -1,3 +1,4 @@
+import hashlib
 import time
 import uuid
 
@@ -5,9 +6,9 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from components.sidebar import Sidebar
 from components.detection_summary import detection_summary
-from utils.styles import load_css
+from components.confidence_slider import confidence_slider
+from utils.page import init_page
 from ai.detector import RoadDamageDetector
 from database.repository import DetectionRepository
 from utils.geotag import extract_gps
@@ -16,14 +17,7 @@ from utils.geotag import extract_gps
 # Page Configuration
 # --------------------------------------------------
 
-st.set_page_config(
-    page_title="Upload Analysis",
-    page_icon="📤",
-    layout="wide"
-)
-
-load_css()
-Sidebar().render()
+init_page("Upload Analysis", "📤")
 
 # --------------------------------------------------
 # Title
@@ -74,13 +68,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-confidence = st.slider(
-    "Confidence Threshold",
-    min_value=0.10,
-    max_value=1.00,
-    value=0.50,
-    step=0.05
-)
+confidence = confidence_slider(key="upload_confidence")
 
 # --------------------------------------------------
 # Session-state cache
@@ -117,10 +105,12 @@ if uploaded_files:
 
     for uploaded_file in uploaded_files:
 
-        # Unique per file *and* per confidence threshold, so changing
-        # the slider re-runs detection (as it should) but re-opening
-        # an expander or toggling GPS does not.
-        file_key = f"{uploaded_file.name}_{uploaded_file.size}_{confidence}"
+        # Keyed on content hash (not name+size, which two different
+        # same-sized files with the same name would collide on) plus
+        # confidence, so changing the slider re-runs detection (as it
+        # should) but re-opening an expander or toggling GPS does not.
+        content_hash = hashlib.md5(uploaded_file.getvalue()).hexdigest()[:12]
+        file_key = f"{content_hash}_{confidence}"
 
         with st.expander(f"📷 {uploaded_file.name}", expanded=(len(uploaded_files) == 1)):
 
@@ -136,16 +126,16 @@ if uploaded_files:
                 use_location = st.checkbox(
                     "Attach GPS coordinates to this detection",
                     value=auto_gps is not None,
-                    key=f"use_loc_{uploaded_file.name}_{uploaded_file.size}"
+                    key=f"use_loc_{content_hash}"
                 )
                 lat_col, lon_col = st.columns(2)
                 latitude = lat_col.number_input(
                     "Latitude", value=float(default_lat), format="%.6f",
-                    key=f"lat_{uploaded_file.name}_{uploaded_file.size}"
+                    key=f"lat_{content_hash}"
                 )
                 longitude = lon_col.number_input(
                     "Longitude", value=float(default_lon), format="%.6f",
-                    key=f"lon_{uploaded_file.name}_{uploaded_file.size}"
+                    key=f"lon_{content_hash}"
                 )
 
             # ---------------------------------------------

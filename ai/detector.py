@@ -14,6 +14,7 @@ import numpy as np
 from PIL import Image
 
 from ai.model_loader import load_model
+from utils.config import OUTPUT_DIR
 
 
 class RoadDamageDetector:
@@ -115,11 +116,7 @@ class RoadDamageDetector:
         Save annotated image
         """
 
-        output_dir = Path("outputs")
-
-        output_dir.mkdir(exist_ok=True)
-
-        output_path = output_dir / filename
+        output_path = OUTPUT_DIR / filename
 
         cv2.imwrite(
 

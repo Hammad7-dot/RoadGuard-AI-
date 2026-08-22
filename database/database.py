@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path("database/roadguard.db")
@@ -15,44 +16,58 @@ def get_connection():
     return conn
 
 
-def create_tables():
+@contextmanager
+def db_connection():
+    """
+    Context-managed connection: guarantees conn.close() runs even if
+    an exception is raised between acquiring the connection and
+    committing (get_connection() callers previously relied on a bare
+    conn.close() at the end of the function, which is skipped if an
+    earlier statement raises).
+    """
 
     conn = get_connection()
 
-    cursor = conn.cursor()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS detections(
 
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+def create_tables():
 
-        filename TEXT,
+    with db_connection() as conn:
 
-        damage_type TEXT,
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS detections(
 
-        confidence REAL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-        x1 INTEGER,
-        y1 INTEGER,
-        x2 INTEGER,
-        y2 INTEGER,
+            filename TEXT,
 
-        detection_count INTEGER,
+            damage_type TEXT,
 
-        processing_time REAL,
+            confidence REAL,
 
-        total_frames INTEGER,
+            x1 INTEGER,
+            y1 INTEGER,
+            x2 INTEGER,
+            y2 INTEGER,
 
-        unique_defect_count INTEGER,
+            detection_count INTEGER,
 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            processing_time REAL,
 
-    )
-    """)
+            total_frames INTEGER,
 
-    conn.commit()
+            unique_defect_count INTEGER,
 
-    conn.close()
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+        )
+        """)
+
+        conn.commit()
 
 
 def _migrate_schema():
@@ -63,37 +78,35 @@ def _migrate_schema():
     EXISTS", so check pragma info first.
     """
 
-    conn = get_connection()
+    with db_connection() as conn:
 
-    cursor = conn.cursor()
+        cursor = conn.cursor()
 
-    cursor.execute("PRAGMA table_info(detections)")
+        cursor.execute("PRAGMA table_info(detections)")
 
-    existing_columns = {row[1] for row in cursor.fetchall()}
+        existing_columns = {row[1] for row in cursor.fetchall()}
 
-    if "total_frames" not in existing_columns:
-        cursor.execute(
-            "ALTER TABLE detections ADD COLUMN total_frames INTEGER"
-        )
+        if "total_frames" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE detections ADD COLUMN total_frames INTEGER"
+            )
 
-    if "unique_defect_count" not in existing_columns:
-        cursor.execute(
-            "ALTER TABLE detections ADD COLUMN unique_defect_count INTEGER"
-        )
+        if "unique_defect_count" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE detections ADD COLUMN unique_defect_count INTEGER"
+            )
 
-    if "latitude" not in existing_columns:
-        cursor.execute(
-            "ALTER TABLE detections ADD COLUMN latitude REAL"
-        )
+        if "latitude" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE detections ADD COLUMN latitude REAL"
+            )
 
-    if "longitude" not in existing_columns:
-        cursor.execute(
-            "ALTER TABLE detections ADD COLUMN longitude REAL"
-        )
+        if "longitude" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE detections ADD COLUMN longitude REAL"
+            )
 
-    conn.commit()
-
-    conn.close()
+        conn.commit()
 
 
 create_tables()
